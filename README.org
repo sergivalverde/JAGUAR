@@ -1,0 +1,80 @@
+* JAGUAR
+
+Just fAst seGmentation bUt fAsteR (JAGUAR) :tiger:. A patch wise FAST tissue segmentation implementation using deep learning networks
+
+** Architecture:
+:LOGBOOK:
+CLOCK: [2019-11-04 Mon 06:49]
+:END:
+FASTNET is a patch-based residual network [[http://arxiv.org/abs/1606.06650][3D-UNET]] (see figure). We have trained the model using the [[https://sites.google.com/view/calgary-campinas-dataset/home][Calgary-Campinas-359]] (CC359) dataset. This dataset consists of 359 images of healthy adults (29-80 years) acquired on Siemens, Philips and General Electric scanners at both 1.5T and 3T (see Souza et al. 2017 for more information about the dataset). In order to train the classifier, all the CC359 images have been skull-stripped using the provided =silver masks= and afterwards segmented using [[https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FAST][ FSL-FAST]] for GM, WM and CSF. Sub-cortical structures in FAST have been replaced by [[https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FIRST][FSL-FIRST]] segmentations. By using the provided =silver masks=, FASTNET can handle both tissue and skull-stripping at the same time.
+
+[[media/unet_architecture.png]]
+
+*** Training/inference characteristics:
+- Input modalities: =T1-w (1x1x1)=
+- Training patch size: =32x32x32=
+- Training sampling: balanced training, same number of brain and non-brain after sampling at =16x16x16=
+- Optimizer: =Adadelta=
+- Training batch size: =32=
+- Training epochs: =200=
+- Train loss: =cross entropy= with weighting classes equal to =1,3,1,1= for skull (non-brain), CSF, GM and WM, respectively.
+- Early stopping: =50 epochs (mean of the validation DSC for individual probability maps CSF, GM and WM)=
+- Inference patch size: =32x32x32=
+- Inference sampling: =16x16x16=
+- Output masks: =Probability maps for CSF, GM and WM, hard segmentation and brain mask=.
+
+** Installation:
+
+The original implementation of JAGUAR was programmed in [[www.python.org][Python]] using the amazing [[www.pytorch.org][Pytorch]] deep learning toolkit. However, installing deep learning libraries in certain settings can be cumbersome or not convenient. We have simplified this process by encapsulating all the heavy lifting inside a [[www.docker.com][Docker]] container.
+
+*** Docker:
+
+Please follow the [[https://docs.docker.com/install/][guide]] to install [[www.docker.com][Docker]] for your operating system:
+
+- [[https://docs.docker.com/docker-for-windows/install/][Windows]]
+- [[https://docs.docker.com/docker-for-mac/install/][Mac]]
+- [[https://docs.docker.com/install/linux/docker-ce/ubuntu/][GNU/Linux (Ubuntu)]]
+
+If you are on Linux a want to use the GPU capabilities of your local machine, please be sure that you install the [[https://github.com/nvidia/nvidia-docker/wiki/Installation-(version-2.0)][nvidia-docker (version 2.0)]] packages. In most of our experiments, JAGUAR can extract the brain out of T1-w image in less than 15 seconds when using GPU and about 2 minutes when running on the CPU (see performance experiments for a more complete analysis).
+
+*** Python:
+
+A [[www.python.org][Python]] installation. Then, install all the required packages using =pip= as follows:
+
+#+begin_src python
+pip install pyfiglet docker
+#+end_src
+
+or using the requirements file:
+#+begin_src python
+pip install -r requirements.txt
+#+end_src
+
+** How to use it:
+To use JAGUAR, from the same source folder just run =./jaguar.py --help= to see all the available options. The first time JAGUAR is running, it will download the =docker container= from the [[https://hub.docker.com/][Docker Hub]].
+
+*** Mandatory parameters:
+- input_image (=--input_image=): Raw T1-w nifti image to process (with skull)
+- out_name (=--out_dir=): Output directory to store the results
+
+*** Optional parameters:
+- gpu use (=--gpu=): use GPU for faster inference (default=No)
+- gpu number (=--gpu_number=): which GPU number to use (default=0)
+- verbose (=--verbose=): show useful information
+- update (=--update=): update the Docker image
+
+*** Example:
+
+Just an example of how to use JAGUAR. Suppose we have a raw T1-w image called =T1_raw.nii.gz= at =/mnt/DATA/exp1/CASE1=. Then:
+
+#+begin_src bash
+./jaguar.py --input_image /mnt/DATA/exp1/CASE1/T1_raw.nii.gz --out_dir "jaguar_raw" --gpu --verbose
+#+end_src
+
+This command will store the CSF, GM and WM probability maps along with the hard segmentation and the brain mask inside the =/mnt/DATA/exp1/CASE1/jaguar_raw= folder
+
+JAGUAR also accepts relative and absolute path locations.
+
+
+** Limitations
+- =T1w= image requirements: =1 x 1 x 1=.
